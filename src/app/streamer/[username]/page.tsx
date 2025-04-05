@@ -141,10 +141,10 @@ const StreamerProfile: FC<StreamerProfileProps> = ({ params }) => {
           //--------------------------------
           verifyTipMutation.mutate(
             {
-              paymentId: orderData.razorpay_payment_id,
-              orderId: orderData.razorpay_order_id,
-              signature: orderData.razorpay_signature,
-              tipId: tipId, // Use the tipId stored in state
+              paymentId: orderData.razorpay_payment_id || "",
+              orderId: orderData.orderId || "",
+              signature: orderData.razorpay_signature || "",
+              tipId: orderData.tipId || "", // Use the tipId stored in state
             },
             {
               onSuccess: (verifyData) => {

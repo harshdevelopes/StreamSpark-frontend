@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SuperTip Socket Tester</title>
+    <script src="https://cdn.socket.io/4.6.0/socket.io.min.js"></script>
+    <style>
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          Oxygen, Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 20px;
+        background-color: #f7f9fc;
+        color: #333;
+      }
+      h1 {
+        color: #4f46e5;
+        margin-bottom: 30px;
+        border-bottom: 2px solid #e5e7eb;
+        padding-bottom: 10px;
+      }
+      .container {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 20px;
+      }
+      .card {
+        background-color: white;
+        border-radius: 8px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        padding: 20px;
+        margin-bottom: 20px;
+      }
+      .form-group {
+        margin-bottom: 15px;
+      }
+      label {
+        display: block;
+        margin-bottom: 5px;
+        font-weight: 500;
+      }
+      input,
+      select,
+      textarea {
+        width: 100%;
+        padding: 8px 12px;
+        border: 1px solid #d1d5db;
+        border-radius: 4px;
+        font-size: 16px;
+      }
+      button {
+        background-color: #4f46e5;
+        color: white;
+        border: none;
+        padding: 10px 15px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 16px;
+        transition: all 0.2s;
+      }
+      button:hover {
+        background-color: #4338ca;
+      }
+      button:disabled {
+        background-color: #9ca3af;
+        cursor: not-allowed;
+      }
+      .log-container {
+        background-color: #1e293b;
+        color: #e2e8f0;
+        border-radius: 8px;
+        padding: 10px;
+        font-family: monospace;
+        height: 400px;
+        overflow-y: auto;
+      }
+      .log-entry {
+        margin-bottom: 8px;
+        border-bottom: 1px solid #334155;
+        padding-bottom: 8px;
+      }
+      .log-time {
+        color: #94a3b8;
+        margin-right: 8px;
+      }
+      .log-event {
+        color: #38bdf8;
+        font-weight: bold;
+      }
+      .log-data {
+        margin-top: 4px;
+        color: #a5f3fc;
+        white-space: pre-wrap;
+        word-break: break-all;
+      }
+      .status-indicator {
+        display: inline-block;
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        margin-right: 8px;
+      }
+      .status-connected {
+        background-color: #10b981;
+      }
+      .status-disconnected {
+        background-color: #ef4444;
+      }
+      .status-connecting {
+        background-color: #f59e0b;
+      }
+      .status-bar {
+        background-color: white;
+        border-radius: 8px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        padding: 10px 20px;
+        margin-bottom: 20px;
+        display: flex;
+        align-items: center;
+      }
+      .frame-container {
+        background-color: white;
+        border-radius: 8px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        padding: 20px;
+        margin-bottom: 20px;
+      }
+      iframe {
+        width: 100%;
+        height: 400px;
+        border: none;
+        background-color: transparent;
+      }
+      .header-bar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+      }
+      .theme-selector {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-bottom: 15px;
+      }
+      .theme-btn {
+        background-color: #e5e7eb;
+        color: #1f2937;
+        border: none;
+        padding: 6px 12px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 14px;
+      }
+      .theme-btn.active {
+        background-color: #4f46e5;
+        color: white;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="header-bar">
+      <h1>SuperTip Socket Tester</h1>
+      <div>
+        <button id="open-console-btn">Open Dev Console</button>
+      </div>
+    </div>
+
+    <div class="status-bar">
+      <span
+        class="status-indicator status-disconnected"
+        id="status-indicator"
+      ></span>
+      <span id="connection-status">Disconnected</span>
+    </div>
+
+    <div class="container">
+      <div>
+        <div class="card">
+          <h2>Socket Connection</h2>
+          <div class="form-group">
+            <label for="token">Alert Token</label>
+            <input
+              type="text"
+              id="token"
+              placeholder="Enter your alert token"
+            />
+          </div>
+          <div class="form-group">
+            <label for="server-url">Server URL</label>
+            <input type="text" id="server-url" value="http://localhost:3001" />
+          </div>
+          <button id="connect-btn">Connect</button>
+          <button id="disconnect-btn" disabled>Disconnect</button>
+        </div>
+
+        <div class="card">
+          <h2>Send Test Tip Event</h2>
+          <div class="form-group">
+            <label for="name">Donor Name</label>
+            <input type="text" id="name" value="Test Donor" />
+          </div>
+          <div class="form-group">
+            <label for="amount">Amount</label>
+            <input type="text" id="amount" value="50" />
+          </div>
+          <div class="form-group">
+            <label for="currency">Currency</label>
+            <select id="currency">
+              <option value="USD">USD ($)</option>
+              <option value="INR">INR (₹)</option>
+              <option value="EUR">EUR (€)</option>
+              <option value="GBP">GBP (£)</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="message">Message</label>
+            <textarea id="message" rows="3">
+This is a test donation message!</textarea
+            >
+          </div>
+          <div class="form-group">
+            <label for="sound-url">Sound URL (optional)</label>
+            <input
+              type="text"
+              id="sound-url"
+              value="/sounds/default-beep.mp3"
+            />
+          </div>
+          <div class="form-group">
+            <label>Theme (optional)</label>
+            <div class="theme-selector" id="theme-selector">
+              <button class="theme-btn" data-theme="">Default from URL</button>
+              <button class="theme-btn" data-theme="default">default</button>
+              <button class="theme-btn" data-theme="cyberpunk">
+                cyberpunk
+              </button>
+              <button class="theme-btn" data-theme="fantasy">fantasy</button>
+              <button class="theme-btn" data-theme="space">space</button>
+              <button class="theme-btn" data-theme="cozy">cozy</button>
+              <button class="theme-btn" data-theme="pixel">pixel</button>
+              <button class="theme-btn" data-theme="anime">anime</button>
+              <button class="theme-btn" data-theme="horror">horror</button>
+              <button class="theme-btn" data-theme="scifi">scifi</button>
+              <button class="theme-btn" data-theme="nature">nature</button>
+            </div>
+          </div>
+          <button id="send-tip-btn" disabled>Send Test Tip</button>
+          <button id="direct-test-btn">Test Alert Directly (No Socket)</button>
+        </div>
+      </div>
+
+      <div>
+        <div class="card">
+          <h2>Event Log</h2>
+          <div class="log-container" id="log-container"></div>
+          <button id="clear-log-btn">Clear Log</button>
+        </div>
+
+        <div class="frame-container">
+          <h2>Alert Preview</h2>
+          <iframe
+            id="alert-frame"
+            src="/alerts/tip?theme=default&sound=%2Fsounds%2Fdefault-beep.mp3"
+            allow="autoplay"
+          ></iframe>
+          <div>
+            <button id="refresh-frame-btn">Refresh Frame</button>
+            <button id="open-new-window-btn">Open in New Window</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      // DOM Elements
+      const connectBtn = document.getElementById("connect-btn");
+      const disconnectBtn = document.getElementById("disconnect-btn");
+      const sendTipBtn = document.getElementById("send-tip-btn");
+      const directTestBtn = document.getElementById("direct-test-btn");
+      const clearLogBtn = document.getElementById("clear-log-btn");
+      const refreshFrameBtn = document.getElementById("refresh-frame-btn");
+      const openNewWindowBtn = document.getElementById("open-new-window-btn");
+      const tokenInput = document.getElementById("token");
+      const serverUrlInput = document.getElementById("server-url");
+      const statusIndicator = document.getElementById("status-indicator");
+      const connectionStatus = document.getElementById("connection-status");
+      const logContainer = document.getElementById("log-container");
+      const alertFrame = document.getElementById("alert-frame");
+      const themeSelector = document.getElementById("theme-selector");
+      const openConsoleBtn = document.getElementById("open-console-btn");
+
+      // Variables
+      let socket = null;
+      let selectedTheme = null;
+
+      // Initialize theme selector
+      themeSelector.addEventListener("click", (e) => {
+        if (e.target.classList.contains("theme-btn")) {
+          // Remove active class from all buttons
+          document
+            .querySelectorAll(".theme-btn")
+            .forEach((btn) => btn.classList.remove("active"));
+          // Add active class to clicked button
+          e.target.classList.add("active");
+          // Store selected theme
+          selectedTheme = e.target.dataset.theme;
+        }
+      });
+
+      // Helper function to add log entry
+      function addLogEntry(event, data) {
+        const logEntry = document.createElement("div");
+        logEntry.className = "log-entry";
+
+        const now = new Date();
+        const time = `${now.getHours().toString().padStart(2, "0")}:${now
+          .getMinutes()
+          .toString()
+          .padStart(2, "0")}:${now
+          .getSeconds()
+          .toString()
+          .padStart(2, "0")}.${now
+          .getMilliseconds()
+          .toString()
+          .padStart(3, "0")}`;
+
+        const logTime = document.createElement("span");
+        logTime.className = "log-time";
+        logTime.textContent = time;
+        logEntry.appendChild(logTime);
+
+        const logEvent = document.createElement("span");
+        logEvent.className = "log-event";
+        logEvent.textContent = event;
+        logEntry.appendChild(logEvent);
+
+        if (data) {
+          const logData = document.createElement("div");
+          logData.className = "log-data";
+          logData.textContent =
+            typeof data === "object" ? JSON.stringify(data, null, 2) : data;
+          logEntry.appendChild(logData);
+        }
+
+        logContainer.appendChild(logEntry);
+        logContainer.scrollTop = logContainer.scrollHeight; // Auto-scroll to bottom
+      }
+
+      // Connect to socket
+      connectBtn.addEventListener("click", () => {
+        const token = tokenInput.value.trim();
+        const serverUrl = serverUrlInput.value.trim();
+
+        if (!token) {
+          alert("Please enter an alert token");
+          return;
+        }
+
+        if (!serverUrl) {
+          alert("Please enter a server URL");
+          return;
+        }
+
+        // Update UI
+        statusIndicator.className = "status-indicator status-connecting";
+        connectionStatus.textContent = "Connecting...";
+        connectBtn.disabled = true;
+
+        try {
+          // Initialize Socket.IO connection
+          socket = io(serverUrl, {
+            query: { token },
+            reconnection: true,
+            reconnectionAttempts: Infinity,
+            reconnectionDelay: 1000,
+          });
+
+          // Socket connection handlers
+          socket.on("connect", () => {
+            console.log("Socket connected");
+            addLogEntry(
+              "connect",
+              `Connected to ${serverUrl} with token ${token}`
+            );
+
+            // Update UI
+            statusIndicator.className = "status-indicator status-connected";
+            connectionStatus.textContent = "Connected";
+            connectBtn.disabled = true;
+            disconnectBtn.disabled = false;
+            sendTipBtn.disabled = false;
+          });
+
+          socket.on("disconnect", (reason) => {
+            console.log("Socket disconnected:", reason);
+            addLogEntry("disconnect", `Disconnected: ${reason}`);
+
+            // Update UI
+            statusIndicator.className = "status-indicator status-disconnected";
+            connectionStatus.textContent = `Disconnected: ${reason}`;
+            connectBtn.disabled = false;
+            disconnectBtn.disabled = true;
+            sendTipBtn.disabled = true;
+          });
+
+          socket.on("connect_error", (error) => {
+            console.error("Connection error:", error);
+            addLogEntry("connect_error", `Connection error: ${error.message}`);
+
+            // Update UI
+            statusIndicator.className = "status-indicator status-disconnected";
+            connectionStatus.textContent = `Connection error: ${error.message}`;
+            connectBtn.disabled = false;
+            disconnectBtn.disabled = true;
+            sendTipBtn.disabled = true;
+          });
+
+          // Listen for all events (debugging)
+          const originalOnEvent = socket.onevent;
+          socket.onevent = function (packet) {
+            const args = packet.data || [];
+            console.log(`Socket received: ${args[0]}`, args.slice(1));
+            if (args[0] !== "ping" && args[0] !== "pong") {
+              addLogEntry(`received:${args[0]}`, args.slice(1)[0]);
+            }
+            originalOnEvent.call(socket, packet);
+          };
+        } catch (error) {
+          console.error("Socket initialization error:", error);
+          addLogEntry(
+            "init_error",
+            `Socket initialization error: ${error.message}`
+          );
+
+          // Update UI
+          statusIndicator.className = "status-indicator status-disconnected";
+          connectionStatus.textContent = "Socket initialization error";
+          connectBtn.disabled = false;
+          disconnectBtn.disabled = true;
+          sendTipBtn.disabled = true;
+        }
+      });
+
+      // Disconnect from socket
+      disconnectBtn.addEventListener("click", () => {
+        if (socket) {
+          socket.disconnect();
+          socket = null;
+
+          // Update UI
+          statusIndicator.className = "status-indicator status-disconnected";
+          connectionStatus.textContent = "Disconnected (manual)";
+          connectBtn.disabled = false;
+          disconnectBtn.disabled = true;
+          sendTipBtn.disabled = true;
+
+          addLogEntry("manual_disconnect", "Manually disconnected from server");
+        }
+      });
+
+      // Send test tip
+      sendTipBtn.addEventListener("click", () => {
+        if (!socket || !socket.connected) {
+          alert("Socket is not connected");
+          return;
+        }
+
+        const data = {
+          name: document.getElementById("name").value,
+          amount: document.getElementById("amount").value,
+          currency: document.getElementById("currency").value,
+          message: document.getElementById("message").value,
+          soundUrl: document.getElementById("sound-url").value,
+        };
+
+        // Add theme if selected
+        if (selectedTheme) {
+          data.theme = selectedTheme;
+        }
+
+        console.log("Sending test tip:", data);
+        addLogEntry("send:new_tip", data);
+
+        // Send with both event names (in case the server listens for a different one)
+        socket.emit("new_tip", data);
+        // Also try with test_tip for development servers
+        socket.emit("test_tip", data);
+      });
+
+      // Test alert directly (no socket needed)
+      directTestBtn.addEventListener("click", () => {
+        // Build the URL with parameters
+        const name = document.getElementById("name").value;
+        const amount = document.getElementById("amount").value;
+        const currency = document.getElementById("currency").value;
+        const message = document.getElementById("message").value;
+        const soundUrl = document.getElementById("sound-url").value;
+
+        // Get current theme from URL or selected theme
+        const currentTheme =
+          new URL(alertFrame.src).searchParams.get("theme") || "default";
+        const theme = selectedTheme || currentTheme;
+
+        // Build new URL
+        const params = new URLSearchParams();
+        params.append("name", name);
+        params.append("amount", amount);
+        params.append("currency", currency);
+        if (message) params.append("message", message);
+        if (soundUrl) params.append("sound", soundUrl);
+        params.append("theme", theme);
+
+        const alertUrl = `/alerts/tip?${params.toString()}`;
+        console.log("Testing alert directly with URL:", alertUrl);
+        addLogEntry("direct_test", { url: alertUrl });
+
+        // Update iframe
+        alertFrame.src = alertUrl;
+      });
+
+      // Clear log
+      clearLogBtn.addEventListener("click", () => {
+        logContainer.innerHTML = "";
+        addLogEntry("log_cleared", "Event log has been cleared");
+      });
+
+      // Refresh frame
+      refreshFrameBtn.addEventListener("click", () => {
+        alertFrame.src = alertFrame.src;
+        addLogEntry("frame_refreshed", "Alert frame has been refreshed");
+      });
+
+      // Open in new window
+      openNewWindowBtn.addEventListener("click", () => {
+        const newWindow = window.open(
+          alertFrame.src,
+          "AlertPreview",
+          "width=800,height=600"
+        );
+        if (newWindow) {
+          addLogEntry("new_window", "Alert opened in new window");
+        } else {
+          addLogEntry(
+            "new_window_blocked",
+            "Pop-up blocked - please allow pop-ups for this site"
+          );
+          alert("Pop-up blocked! Please allow pop-ups for this site.");
+        }
+      });
+
+      // Open console button
+      openConsoleBtn.addEventListener("click", () => {
+        console.log("====== DEVELOPER CONSOLE ======");
+        console.log(
+          "Use this console to view detailed socket events and debug information."
+        );
+        console.log(
+          "To test the socket directly from console, try these commands:"
+        );
+        console.log(
+          '1. socket.emit("new_tip", { name: "Console Test", amount: "100", currency: "USD", message: "Testing from console" })'
+        );
+        console.log(
+          '2. socket.on("new_tip", (data) => console.log("Received tip:", data))'
+        );
+        console.log("3. Check window.socket to access the socket object");
+
+        alert(
+          "Press F12 or right-click -> Inspect to open the developer console."
+        );
+      });
+
+      // Make socket accessible from console for manual testing
+      window.socketTester = {
+        connect: (token, url) => {
+          tokenInput.value = token || tokenInput.value;
+          serverUrlInput.value = url || serverUrlInput.value;
+          connectBtn.click();
+        },
+        sendTip: (data) => {
+          if (data) {
+            if (data.name) document.getElementById("name").value = data.name;
+            if (data.amount)
+              document.getElementById("amount").value = data.amount;
+            if (data.currency)
+              document.getElementById("currency").value = data.currency;
+            if (data.message)
+              document.getElementById("message").value = data.message;
+            if (data.soundUrl)
+              document.getElementById("sound-url").value = data.soundUrl;
+            if (data.theme) {
+              const themeBtn = document.querySelector(
+                `.theme-btn[data-theme="${data.theme}"]`
+              );
+              if (themeBtn) themeBtn.click();
+            }
+          }
+          sendTipBtn.click();
+        },
+        getSocket: () => socket,
+      };
+
+      // Initialize the page
+      document.addEventListener("DOMContentLoaded", () => {
+        addLogEntry("page_loaded", "Socket Tester initialized");
+        document.querySelector(".theme-btn").classList.add("active"); // Select first theme by default
+      });
+    </script>
+  </body>
+</html>

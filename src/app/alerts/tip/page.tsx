@@ -227,7 +227,19 @@ const getDuration = (amountUSD: number) => {
   return 7000;
 };
 
+// Type for test tip event
+interface TestTip {
+  name: string;
+  amount: string;
+  currency: CurrencyCode;
+  message?: string;
+  soundUrl?: string;
+  theme?: ThemeName;
+}
+
 export default function TipAlertPage() {
+  console.log("===== TipAlertPage Component Rendered =====");
+
   const searchParams = useSearchParams();
   const [alertData, setAlertData] = useState<any>(null);
   const [isVisible, setIsVisible] = useState(false);
@@ -237,10 +249,41 @@ export default function TipAlertPage() {
   const [duration, setDuration] = useState(7000);
   const [themeName, setThemeName] = useState<ThemeName>("default");
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const testTipHandlerRef = useRef<(data: TestTip) => void>(() => {});
+
+  // Log initial token for debugging
+  const alertToken = searchParams.get("token");
+  useEffect(() => {
+    if (alertToken) {
+      console.log(
+        `🔑 TipAlert: Using alert token: ${alertToken.substring(0, 6)}...`
+      );
+    } else {
+      console.warn("⚠️ TipAlert: No alert token provided in URL params!");
+    }
+  }, [alertToken]);
 
   // Process incoming tip function (defined early for the socket hook)
   const processNewTip = useCallback((tipData: any) => {
-    console.log("TipAlert: Processing new tip:", tipData);
+    console.log("🔔 TipAlert: NEW TIP EVENT RECEIVED!", tipData);
+    console.table({
+      name: tipData.name,
+      amount: tipData.amount,
+      currency: tipData.currency,
+      message:
+        tipData.message?.substring(0, 30) +
+          (tipData.message?.length > 30 ? "..." : "") || "No message",
+    });
+
+    // If a theme is specified in the tip data, use it
+    if (tipData.theme && themes[tipData.theme as ThemeName]) {
+      console.log(
+        `🎨 TipAlert: Setting theme from tip data to "${tipData.theme}"`
+      );
+      const selectedTheme = themes[tipData.theme as ThemeName];
+      setCurrentTheme(selectedTheme as typeof themes.default);
+      setThemeName(tipData.theme as ThemeName);
+    }
 
     // Clear previous alert immediately if new one comes in
     setIsVisible(false);
@@ -256,6 +299,10 @@ export default function TipAlertPage() {
         currency &&
         SUPPORTED_CURRENCIES[currency as CurrencyCode]
       ) {
+        console.log(
+          `🎬 TipAlert: Processing tip - ${name} (${currency}${amount})`
+        );
+
         const currencyInfo = SUPPORTED_CURRENCIES[currency as CurrencyCode];
         const amountNum = parseFloat(amount);
         const amountUSD = amountNum * currencyInfo.usdRate;
@@ -272,30 +319,39 @@ export default function TipAlertPage() {
           amount: displayAmount,
           message,
         });
+        console.log(
+          `🌟 TipAlert: Alert data set, showing for ${alertDuration}ms`
+        );
         setIsVisible(true);
 
         // Play sound if provided
         if (soundUrl && audioRef.current) {
+          console.log(`🔊 TipAlert: Playing sound: ${soundUrl}`);
           audioRef.current.src = decodeURIComponent(soundUrl);
           audioRef.current
             .play()
-            .catch((error) => console.error("Audio play failed:", error));
+            .catch((error) => console.error("❌ Audio play failed:", error));
         }
 
         const timer = setTimeout(() => {
+          console.log(`⏱️ TipAlert: Alert duration complete, hiding animation`);
           setIsVisible(false);
         }, alertDuration);
 
         const resetTimer = setTimeout(() => {
+          console.log(`🧹 TipAlert: Cleanup complete, alert data cleared`);
           setAlertData(null);
         }, alertDuration + 1000); // Give exit animation more time
 
         // Store timers to clear them in cleanup
         window.tipAlertTimers = { timer, resetTimer, displayTimeout };
+      } else {
+        console.error("❌ TipAlert: Invalid tip data format:", tipData);
       }
     }, 500);
 
     return () => {
+      console.log(`🧹 TipAlert: Cleaning up timers and alert data`);
       clearTimeout(displayTimeout);
       if (window.tipAlertTimers) {
         clearTimeout(window.tipAlertTimers.timer);
@@ -304,14 +360,71 @@ export default function TipAlertPage() {
     };
   }, []);
 
-  // Get token from URL
-  const alertToken = searchParams.get("token");
+  // Store the latest processNewTip in a ref for the test function
+  testTipHandlerRef.current = processNewTip;
+
+  // Add test function to window object for easier testing
+  useEffect(() => {
+    // Add a test function to window object
+    window.testTip = (tipData: Partial<TestTip> = {}) => {
+      console.log("🧪 TipAlert: Test tip triggered from console!");
+
+      // Default test data with any overrides
+      const testData: TestTip = {
+        name: tipData.name || "Test Donor",
+        amount: tipData.amount || "50",
+        currency: tipData.currency || "USD",
+        message: tipData.message || "This is a test tip from the console!",
+        soundUrl: tipData.soundUrl || "/sounds/default-beep.mp3",
+        theme: tipData.theme,
+      };
+
+      console.log("🧪 TipAlert: Sending test data:", testData);
+      testTipHandlerRef.current(testData);
+
+      return "Test tip triggered! Check the alert.";
+    };
+
+    // Add a help function
+    window.tipHelp = () => {
+      console.log(`
+📋 TipAlert Console Commands:
+----------------------------
+window.testTip()                   - Trigger default test tip
+window.testTip({                   - Trigger custom test tip
+  name: "John Doe", 
+  amount: "100", 
+  currency: "USD",
+  message: "Great stream!",
+  theme: "cyberpunk"               - Try different themes: ${Object.keys(
+    themes
+  ).join(", ")}
+})
+window.tipHelp()                   - Show this help
+
+Theme options: ${Object.keys(themes).join(", ")}
+Currency options: ${Object.keys(SUPPORTED_CURRENCIES).join(", ")}
+      `);
+      return "Tip testing help shown in console";
+    };
+
+    console.log(
+      "🧪 TipAlert: Test functions added to window object. Try window.testTip() or window.tipHelp()"
+    );
+
+    // Cleanup on unmount
+    return () => {
+      delete window.testTip;
+      delete window.tipHelp;
+    };
+  }, []);
 
   // Use our custom socket hook with the new_tip event handler
   const {
     status: connectionStatus,
     isConnected,
     setComponentName,
+    sendEvent,
   } = useSocket(
     {
       new_tip: processNewTip,
@@ -319,8 +432,29 @@ export default function TipAlertPage() {
     alertToken || undefined
   );
 
+  // Log socket connection status changes
+  useEffect(() => {
+    console.log(
+      `🔌 TipAlert: Socket connection status changed to "${connectionStatus}"`
+    );
+    if (connectionStatus === "connected") {
+      console.log(
+        "✅ TipAlert: Socket connected and listening for tip events!"
+      );
+    } else if (connectionStatus === "error") {
+      console.error(
+        "❌ TipAlert: Socket connection error! Check token and server status."
+      );
+    } else if (connectionStatus === "disconnected") {
+      console.warn(
+        "⚠️ TipAlert: Socket disconnected. Will try to reconnect automatically."
+      );
+    }
+  }, [connectionStatus]);
+
   // Set component name for better logging
   useEffect(() => {
+    console.log("📝 TipAlert: Setting component name for logs");
     setComponentName("TipAlertPage");
   }, [setComponentName]);
 
@@ -328,6 +462,9 @@ export default function TipAlertPage() {
   useEffect(() => {
     const currentThemeName =
       (searchParams.get("theme") as ThemeName) || "default";
+
+    console.log(`🎨 TipAlert: Setting theme to "${currentThemeName}"`);
+
     const selectedTheme = themes[currentThemeName] || themes.default;
     setCurrentTheme(selectedTheme as typeof themes.default);
     setThemeName(currentThemeName);
@@ -336,7 +473,10 @@ export default function TipAlertPage() {
   // --- URL-based Alert Logic (fallback) ---
   useEffect(() => {
     // Only process URL params if we're not connected via socket
-    if (isConnected) return;
+    if (isConnected) {
+      console.log("🔄 TipAlert: Socket connected, skipping URL-based alerts");
+      return;
+    }
 
     const name = searchParams.get("name");
     const amountStr = searchParams.get("amount");
@@ -345,6 +485,16 @@ export default function TipAlertPage() {
     const soundUrl = searchParams.get("sound");
 
     if (name && amountStr && currency && SUPPORTED_CURRENCIES[currency]) {
+      console.log(
+        `📨 TipAlert: URL params detected, processing as fallback tip:`,
+        {
+          name,
+          amount: amountStr,
+          currency,
+          message: message?.substring(0, 20) + "...",
+        }
+      );
+
       // Process as tip data
       processNewTip({
         name,
@@ -361,6 +511,15 @@ export default function TipAlertPage() {
   // Check for headerOnly property with optional chaining to fix the TypeScript error
   const showMinimalBody =
     !alertData?.message && !(currentTheme as any).headerOnly;
+
+  // Log render state
+  useEffect(() => {
+    if (isVisible && alertData) {
+      console.log(
+        `🎬 TipAlert: Alert is now visible with theme "${themeName}"`
+      );
+    }
+  }, [isVisible, alertData, themeName]);
 
   return (
     <div
@@ -392,6 +551,12 @@ export default function TipAlertPage() {
             transition={currentTheme.animation.transition}
             // Combine container classes with rounded-lg and shadow defaults
             className={`shadow-xl max-w-sm w-full overflow-hidden ${currentTheme.containerClasses}`}
+            onAnimationStart={() =>
+              console.log(`🎭 TipAlert: Alert animation started`)
+            }
+            onAnimationComplete={() =>
+              console.log(`🎭 TipAlert: Alert animation completed`)
+            }
           >
             {/* Header part */}
             <div
@@ -441,5 +606,7 @@ declare global {
       resetTimer: NodeJS.Timeout;
       displayTimeout: NodeJS.Timeout;
     };
+    testTip?: (tipData?: Partial<TestTip>) => string;
+    tipHelp?: () => string;
   }
 }

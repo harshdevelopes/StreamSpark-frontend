@@ -116,6 +116,7 @@ export const verifyTip = async (data: {
   signature: string;
   tipId: string | null;
 }) => {
+  console.log("Verifying tip:", data);
   if (!data.tipId)
     throw new Error("Internal Tip ID is missing for verification.");
   return apiFetch("/tips/verify", {
