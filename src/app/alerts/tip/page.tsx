@@ -9,8 +9,6 @@ import React, {
 } from "react";
 import { useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-// Import our custom hook
-import useSocket from "@/lib/hooks/useSocket";
 import {
   FaStar, // Anime
   FaHeart, // Cozy
@@ -249,348 +247,166 @@ export default function TipAlertPage() {
   const [duration, setDuration] = useState(7000);
   const [themeName, setThemeName] = useState<ThemeName>("default");
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const testTipHandlerRef = useRef<(data: TestTip) => void>(() => {});
 
-  // Log initial token for debugging
-  const alertToken = searchParams.get("token");
+  // Check URL search params for a test alert
   useEffect(() => {
-    if (alertToken) {
-      console.log(
-        `🔑 TipAlert: Using alert token: ${alertToken.substring(0, 6)}...`
-      );
-    } else {
-      console.warn("⚠️ TipAlert: No alert token provided in URL params!");
+    const name = searchParams.get("name");
+    const amount = searchParams.get("amount");
+    const currency = searchParams.get("currency") as CurrencyCode;
+    const message = searchParams.get("message");
+    const theme = searchParams.get("theme") as ThemeName;
+
+    if (name && amount && currency) {
+      // Simulate test tip from URL params
+      triggerTestAlert({
+        name,
+        amount,
+        currency,
+        message: message || undefined,
+        theme: theme || undefined,
+      });
     }
-  }, [alertToken]);
+  }, [searchParams]);
 
-  // Process incoming tip function (defined early for the socket hook)
-  const processNewTip = useCallback((tipData: any) => {
-    console.log("🔔 TipAlert: NEW TIP EVENT RECEIVED!", tipData);
-    console.table({
-      name: tipData.name,
-      amount: tipData.amount,
-      currency: tipData.currency,
-      message:
-        tipData.message?.substring(0, 30) +
-          (tipData.message?.length > 30 ? "..." : "") || "No message",
-    });
+  // Handle tip alert display logic
+  const handleTipAlert = useCallback((data: any) => {
+    console.log("Tip Alert Data:", data);
 
-    // If a theme is specified in the tip data, use it
-    if (tipData.theme && themes[tipData.theme as ThemeName]) {
-      console.log(
-        `🎨 TipAlert: Setting theme from tip data to "${tipData.theme}"`
-      );
-      const selectedTheme = themes[tipData.theme as ThemeName];
-      setCurrentTheme(selectedTheme as typeof themes.default);
-      setThemeName(tipData.theme as ThemeName);
+    // Cancel any existing timers
+    if (window.tipAlertTimers) {
+      clearTimeout(window.tipAlertTimers.timer);
+      clearTimeout(window.tipAlertTimers.resetTimer);
+      clearTimeout(window.tipAlertTimers.displayTimeout);
     }
 
-    // Clear previous alert immediately if new one comes in
-    setIsVisible(false);
-    setAlertData(null);
+    // Set the theme (fallback to default if not found)
+    const newThemeName = (data.theme || "default") as ThemeName;
+    const newTheme = themes[newThemeName] || themes.default;
+    setThemeName(newThemeName);
+    setCurrentTheme(newTheme);
 
-    // Short delay to allow exit animation before showing new alert
-    const displayTimeout = setTimeout(() => {
-      const { name, amount, currency, message, soundUrl } = tipData;
+    // Get approximate USD value for duration calculation
+    const amountNum = parseFloat(data.amount);
+    const currency = data.currency as CurrencyCode;
+    const rate = SUPPORTED_CURRENCIES[currency]?.usdRate || 1;
+    const usdValue = amountNum * rate;
 
-      if (
-        name &&
-        amount &&
-        currency &&
-        SUPPORTED_CURRENCIES[currency as CurrencyCode]
-      ) {
-        console.log(
-          `🎬 TipAlert: Processing tip - ${name} (${currency}${amount})`
-        );
+    // Set duration based on amount
+    const newDuration = getDuration(usdValue);
+    setDuration(newDuration);
 
-        const currencyInfo = SUPPORTED_CURRENCIES[currency as CurrencyCode];
-        const amountNum = parseFloat(amount);
-        const amountUSD = amountNum * currencyInfo.usdRate;
-        const alertDuration = getDuration(amountUSD);
-        setDuration(alertDuration);
+    // Set alert data and trigger animation
+    setAlertData(data);
 
-        const displayAmount = `${
-          currencyInfo.symbol
-        }${amountNum.toLocaleString()}`;
-
-        // Set alert data from tip event
-        setAlertData({
-          name,
-          amount: displayAmount,
-          message,
-        });
-        console.log(
-          `🌟 TipAlert: Alert data set, showing for ${alertDuration}ms`
-        );
+    // Display the alert after a short delay
+    window.tipAlertTimers = {
+      displayTimeout: setTimeout(() => {
         setIsVisible(true);
 
         // Play sound if provided
-        if (soundUrl && audioRef.current) {
-          console.log(`🔊 TipAlert: Playing sound: ${soundUrl}`);
-          audioRef.current.src = decodeURIComponent(soundUrl);
-          audioRef.current
-            .play()
-            .catch((error) => console.error("❌ Audio play failed:", error));
+        if (data.soundUrl && audioRef.current) {
+          audioRef.current.src = data.soundUrl;
+          audioRef.current.play().catch((err) => {
+            console.error("Failed to play audio:", err);
+          });
         }
 
-        const timer = setTimeout(() => {
-          console.log(`⏱️ TipAlert: Alert duration complete, hiding animation`);
+        // Hide after duration
+        window.tipAlertTimers.timer = setTimeout(() => {
           setIsVisible(false);
-        }, alertDuration);
 
-        const resetTimer = setTimeout(() => {
-          console.log(`🧹 TipAlert: Cleanup complete, alert data cleared`);
-          setAlertData(null);
-        }, alertDuration + 1000); // Give exit animation more time
+          // Reset state after animation is complete
+          window.tipAlertTimers.resetTimer = setTimeout(() => {
+            setAlertData(null);
+          }, 500); // Match exit animation duration
+        }, newDuration);
+      }, 100),
+    } as any;
+  }, []);
 
-        // Store timers to clear them in cleanup
-        window.tipAlertTimers = { timer, resetTimer, displayTimeout };
-      } else {
-        console.error("❌ TipAlert: Invalid tip data format:", tipData);
-      }
-    }, 500);
+  // Function to trigger a test alert
+  const triggerTestAlert = useCallback(
+    (testData?: Partial<TestTip>) => {
+      const defaultTestData: TestTip = {
+        name: "TestViewer123",
+        amount: "10.00",
+        currency: "USD",
+        message: "This is a test message. Thanks for the great content!",
+        theme: "default",
+      };
 
+      const tipData = { ...defaultTestData, ...testData };
+
+      handleTipAlert(tipData);
+      return `Test tip triggered: ${tipData.amount} ${tipData.currency} from ${tipData.name}`;
+    },
+    [handleTipAlert]
+  );
+
+  // Expose test functions to window for easy testing via browser console
+  useEffect(() => {
+    // Add test helpers to window object
+    window.testTip = triggerTestAlert;
+    window.tipHelp = () => {
+      return `
+        Usage:
+        testTip() - Trigger default test tip
+        testTip({name: "User", amount: "5.00", currency: "USD", message: "Hi!", theme: "cyberpunk"})
+        
+        Available themes: ${Object.keys(themes).join(", ")}
+      `;
+    };
+
+    // Cleanup
     return () => {
-      console.log(`🧹 TipAlert: Cleaning up timers and alert data`);
-      clearTimeout(displayTimeout);
       if (window.tipAlertTimers) {
         clearTimeout(window.tipAlertTimers.timer);
         clearTimeout(window.tipAlertTimers.resetTimer);
+        clearTimeout(window.tipAlertTimers.displayTimeout);
       }
-    };
-  }, []);
-
-  // Store the latest processNewTip in a ref for the test function
-  testTipHandlerRef.current = processNewTip;
-
-  // Add test function to window object for easier testing
-  useEffect(() => {
-    // Add a test function to window object
-    window.testTip = (tipData: Partial<TestTip> = {}) => {
-      console.log("🧪 TipAlert: Test tip triggered from console!");
-
-      // Default test data with any overrides
-      const testData: TestTip = {
-        name: tipData.name || "Test Donor",
-        amount: tipData.amount || "50",
-        currency: tipData.currency || "USD",
-        message: tipData.message || "This is a test tip from the console!",
-        soundUrl: tipData.soundUrl || "/sounds/default-beep.mp3",
-        theme: tipData.theme,
-      };
-
-      console.log("🧪 TipAlert: Sending test data:", testData);
-      testTipHandlerRef.current(testData);
-
-      return "Test tip triggered! Check the alert.";
-    };
-
-    // Add a help function
-    window.tipHelp = () => {
-      console.log(`
-📋 TipAlert Console Commands:
-----------------------------
-window.testTip()                   - Trigger default test tip
-window.testTip({                   - Trigger custom test tip
-  name: "John Doe", 
-  amount: "100", 
-  currency: "USD",
-  message: "Great stream!",
-  theme: "cyberpunk"               - Try different themes: ${Object.keys(
-    themes
-  ).join(", ")}
-})
-window.tipHelp()                   - Show this help
-
-Theme options: ${Object.keys(themes).join(", ")}
-Currency options: ${Object.keys(SUPPORTED_CURRENCIES).join(", ")}
-      `);
-      return "Tip testing help shown in console";
-    };
-
-    console.log(
-      "🧪 TipAlert: Test functions added to window object. Try window.testTip() or window.tipHelp()"
-    );
-
-    // Cleanup on unmount
-    return () => {
       delete window.testTip;
       delete window.tipHelp;
     };
-  }, []);
+  }, [triggerTestAlert]);
 
-  // Use our custom socket hook with the new_tip event handler
-  const {
-    status: connectionStatus,
-    isConnected,
-    setComponentName,
-    sendEvent,
-  } = useSocket(
-    {
-      new_tip: processNewTip,
-    },
-    alertToken || undefined
-  );
-
-  // Log socket connection status changes
-  useEffect(() => {
-    console.log(
-      `🔌 TipAlert: Socket connection status changed to "${connectionStatus}"`
-    );
-    if (connectionStatus === "connected") {
-      console.log(
-        "✅ TipAlert: Socket connected and listening for tip events!"
-      );
-    } else if (connectionStatus === "error") {
-      console.error(
-        "❌ TipAlert: Socket connection error! Check token and server status."
-      );
-    } else if (connectionStatus === "disconnected") {
-      console.warn(
-        "⚠️ TipAlert: Socket disconnected. Will try to reconnect automatically."
-      );
-    }
-  }, [connectionStatus]);
-
-  // Set component name for better logging
-  useEffect(() => {
-    console.log("📝 TipAlert: Setting component name for logs");
-    setComponentName("TipAlertPage");
-  }, [setComponentName]);
-
-  // Handle theme from URL
-  useEffect(() => {
-    const currentThemeName =
-      (searchParams.get("theme") as ThemeName) || "default";
-
-    console.log(`🎨 TipAlert: Setting theme to "${currentThemeName}"`);
-
-    const selectedTheme = themes[currentThemeName] || themes.default;
-    setCurrentTheme(selectedTheme as typeof themes.default);
-    setThemeName(currentThemeName);
-  }, [searchParams]);
-
-  // --- URL-based Alert Logic (fallback) ---
-  useEffect(() => {
-    // Only process URL params if we're not connected via socket
-    if (isConnected) {
-      console.log("🔄 TipAlert: Socket connected, skipping URL-based alerts");
-      return;
-    }
-
-    const name = searchParams.get("name");
-    const amountStr = searchParams.get("amount");
-    const currency = searchParams.get("currency") as CurrencyCode;
-    const message = searchParams.get("message");
-    const soundUrl = searchParams.get("sound");
-
-    if (name && amountStr && currency && SUPPORTED_CURRENCIES[currency]) {
-      console.log(
-        `📨 TipAlert: URL params detected, processing as fallback tip:`,
-        {
-          name,
-          amount: amountStr,
-          currency,
-          message: message?.substring(0, 20) + "...",
-        }
-      );
-
-      // Process as tip data
-      processNewTip({
-        name,
-        amount: amountStr,
-        currency,
-        message,
-        soundUrl,
-      });
-    }
-  }, [searchParams, isConnected, processNewTip]);
-
-  const IconComponent = currentTheme.icon; // Get the icon component
-
-  // Check for headerOnly property with optional chaining to fix the TypeScript error
-  const showMinimalBody =
-    !alertData?.message && !(currentTheme as any).headerOnly;
-
-  // Log render state
-  useEffect(() => {
-    if (isVisible && alertData) {
-      console.log(
-        `🎬 TipAlert: Alert is now visible with theme "${themeName}"`
-      );
-    }
-  }, [isVisible, alertData, themeName]);
-
+  // Render the component
   return (
-    <div
-      className="w-screen h-screen overflow-hidden relative flex items-start justify-center p-4"
-      style={{ background: "transparent" }}
-    >
-      {/* Add hidden audio element */}
-      <audio ref={audioRef} style={{ display: "none" }} />
+    <div className="fixed inset-0 pointer-events-none flex items-center justify-center z-50">
+      <audio ref={audioRef} />
 
-      {/* Optional: Add a subtle connection status indicator for debugging */}
-      <div
-        className={`connection-status ${connectionStatus} absolute bottom-2 right-2 text-xs opacity-50`}
-      >
-        {connectionStatus === "connected"
-          ? "Socket Connected"
-          : connectionStatus === "error"
-          ? "Connection Error"
-          : "Disconnected"}
-      </div>
-
-      {/* Use AnimatePresence for entry/exit animations */}
       <AnimatePresence>
         {isVisible && alertData && (
           <motion.div
-            key={themeName} // Use themeName as key to ensure re-animation on theme change
+            key="tip-alert"
             initial={currentTheme.animation.initial}
             animate={currentTheme.animation.animate}
             exit={currentTheme.animation.exit}
             transition={currentTheme.animation.transition}
-            // Combine container classes with rounded-lg and shadow defaults
-            className={`shadow-xl max-w-sm w-full overflow-hidden ${currentTheme.containerClasses}`}
-            onAnimationStart={() =>
-              console.log(`🎭 TipAlert: Alert animation started`)
-            }
-            onAnimationComplete={() =>
-              console.log(`🎭 TipAlert: Alert animation completed`)
-            }
+            className={`w-96 max-w-full pointer-events-none shadow-xl ${currentTheme.containerClasses}`}
           >
-            {/* Header part */}
-            <div
-              className={`${currentTheme.headerClasses} flex justify-between items-center gap-2`}
-            >
-              <div className="flex items-center gap-2 min-w-0">
-                {" "}
-                {/* min-w-0 prevents overflow */}
-                {IconComponent && (
-                  <IconComponent className="h-4 w-4 opacity-80 flex-shrink-0" />
-                )}
-                <p
-                  className={`${currentTheme.nameClasses} truncate flex-shrink`}
-                >
-                  {alertData.name}
-                </p>
+            {/* Header section */}
+            <div className={currentTheme.headerClasses}>
+              <div className="flex items-center gap-2">
+                {React.createElement(currentTheme.icon, {
+                  className: "h-4 w-4",
+                })}
+                <span>New Tip!</span>
               </div>
-              <p className={`${currentTheme.amountClasses} flex-shrink-0`}>
-                {alertData.amount}
-              </p>
             </div>
-            {/* Message part (only if message exists) */}
-            {alertData.message && (
-              <div className={`${currentTheme.bodyClasses}`}>
-                <p className={`${currentTheme.messageClasses} break-words`}>
-                  {alertData.message}
-                </p>
+
+            {/* Body section */}
+            <div className={currentTheme.bodyClasses}>
+              <div className={currentTheme.nameClasses}>{alertData.name}</div>
+              <div className={currentTheme.amountClasses}>
+                {SUPPORTED_CURRENCIES[alertData.currency]?.symbol || "$"}
+                {alertData.amount} {alertData.currency}
               </div>
-            )}
-            {/* If no message, show a minimal body only if theme doesn't define header only */}
-            {showMinimalBody && (
-              // Ensure some height even without message, using body classes for consistency
-              <div className={`${currentTheme.bodyClasses} min-h-[1rem]`}></div>
-            )}
+              {alertData.message && (
+                <div className={currentTheme.messageClasses}>
+                  {alertData.message}
+                </div>
+              )}
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -598,7 +414,7 @@ Currency options: ${Object.keys(SUPPORTED_CURRENCIES).join(", ")}
   );
 }
 
-// Add a declaration for the custom property on the window object
+// Add type extensions for window
 declare global {
   interface Window {
     tipAlertTimers?: {

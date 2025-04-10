@@ -124,27 +124,12 @@ const StreamerProfile: FC<StreamerProfileProps> = ({ params }) => {
       {
         onSuccess: (orderData) => {
           console.log("Order created:", orderData);
-          // TODO :: Uncomment this once we have a working Razorpay implementation
-          // if (
-          //   !orderData ||
-          //   !orderData.orderId ||
-          //   !orderData.providerKeyId ||
-          //   !orderData.tipId
-          // ) {
-          //   setError("Received invalid order data from server.");
-          //   return;
-          // }
-          // setTipId(orderData.tipId || ""); // Store tipId for verification
-          // console.log("Tip ID:", orderData.tipId);
-          // --- Initialize Payment Provider ---
-          // initializeRazorpay(orderData);
-          //--------------------------------
           verifyTipMutation.mutate(
             {
-              paymentId: orderData.razorpay_payment_id || "",
+              paymentId: "",
               orderId: orderData.orderId || "",
-              signature: orderData.razorpay_signature || "",
-              tipId: orderData.tipId || "", // Use the tipId stored in state
+              signature: "",
+              tipId: orderData.tipId || "",
             },
             {
               onSuccess: (verifyData) => {
@@ -158,7 +143,7 @@ const StreamerProfile: FC<StreamerProfileProps> = ({ params }) => {
                 console.error("Payment verification failed:", error);
                 setError(
                   error.message ||
-                    "Payment succeeded but verification failed. Contact support."
+                    "Payment verification failed. Contact support."
                 );
               },
             }
@@ -170,107 +155,6 @@ const StreamerProfile: FC<StreamerProfileProps> = ({ params }) => {
         },
       }
     );
-  };
-
-  // --- Initialize Razorpay (separated logic) ---
-  const initializeRazorpay = async (orderData: {
-    orderId: string;
-    tipId: string;
-    providerKeyId: string;
-  }) => {
-    const paymentAmount =
-      parseInt(amount) *
-      (SUPPORTED_CURRENCIES[selectedCurrency]?.factor || 100);
-
-    const options = {
-      key: orderData.providerKeyId,
-      amount: paymentAmount.toString(),
-      currency: selectedCurrency,
-      name: "SuperTip",
-      description: `Tip for ${streamer.displayName}`,
-      image: "/images/default-avatar.png",
-      order_id: orderData.orderId,
-      handler: (razorpayResponse: any) => {
-        console.log("Razorpay Success Response:", razorpayResponse);
-        // Trigger Verification Mutation
-        verifyTipMutation.mutate(
-          {
-            paymentId: razorpayResponse.razorpay_payment_id,
-            orderId: razorpayResponse.razorpay_order_id,
-            signature: razorpayResponse.razorpay_signature,
-            tipId: tipId, // Use the tipId stored in state
-          },
-          {
-            onSuccess: (verifyData) => {
-              console.log("Payment Verification Success:", verifyData);
-              setShowSuccess(true);
-              setAmount("");
-              setMessage("");
-              setError(null);
-            },
-            onError: (error) => {
-              console.error("Payment verification failed:", error);
-              setError(
-                error.message ||
-                  "Payment succeeded but verification failed. Contact support."
-              );
-            },
-          }
-        );
-      },
-      prefill: {},
-      notes: {
-        address: "SuperTip Transaction",
-        message: message,
-        streamer_username: streamer.username,
-        internal_tip_id: orderData.tipId,
-      },
-      theme: {
-        color: "#6366F1",
-      },
-    };
-
-    // TODO :: Uncomment this once we have a working Razorpay implementation
-    // // --- Load Razorpay Script and Open ---
-    // const loadScriptRes = await loadRazorpayScript(
-    //   "https://checkout.razorpay.com/v1/checkout.js"
-    // );
-    // if (!loadScriptRes) {
-    //   setError("Razorpay SDK failed to load. Are you online?"); // Show error via state
-    //   // Need to potentially reset createOrderMutation loading state if script fails
-    //   createOrderMutation.reset();
-    //   return;
-    // }
-    // try {
-    //   // @ts-ignore
-    //   const paymentObject = new window.Razorpay(options);
-    //   paymentObject.on("payment.failed", function (failResponse: any) {
-    //     console.error("Razorpay Payment Failed:", failResponse);
-    //     setError(
-    //       `Payment failed: ${failResponse.error.description}. Code: ${failResponse.error.code}`
-    //     );
-    //     // Reset mutations if payment fails externally
-    //     createOrderMutation.reset();
-    //     verifyTipMutation.reset();
-    //   });
-    //   paymentObject.open();
-    // } catch (error) {
-    // console.error("Failed to initialize Razorpay:", error);
-    // setError("Could not display payment window. Please try again.");
-    // createOrderMutation.reset(); // Reset loading state on error
-    // }
-  };
-
-  // --- Helper to load Razorpay script (Keep as is) ---
-  const loadRazorpayScript = (src: string) => {
-    // ... (implementation remains the same)
-    return new Promise((resolve) => {
-      const script = document.createElement("script");
-      script.src = src;
-      script.onload = () => resolve(true);
-      script.onerror = () => resolve(false);
-      document.body.appendChild(script);
-    });
   };
 
   // --- Calculate combined loading/error state ---

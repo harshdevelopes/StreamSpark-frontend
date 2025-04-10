@@ -1,50 +1,41 @@
 "use client";
 
-import React, { useState, useCallback, useEffect } from "react";
-import useSocket from "@/lib/hooks/useSocket";
+import React, { useState, useCallback } from "react";
 
 /**
- * Example Chat Widget component using our centralized socket service
+ * Chat Widget component (Static version without socket)
  */
 export default function ChatWidget({ userToken }: { userToken: string }) {
   const [messages, setMessages] = useState<
     Array<{ user: string; text: string }>
-  >([]);
+  >([
+    { user: "System", text: "Welcome to the chat!" },
+    {
+      user: "System",
+      text: "This is a static implementation (socket removed)",
+    },
+  ]);
   const [newMessage, setNewMessage] = useState("");
 
-  // Handle incoming chat messages
-  const handleChatMessage = useCallback(
-    (data: { user: string; text: string }) => {
-      console.log("ChatWidget: Received message:", data);
-      setMessages((prev) => [...prev, data]);
-    },
-    []
-  );
-
-  // Use our socket hook with chat_message event handler
-  const { isConnected, status, sendEvent, setComponentName } = useSocket(
-    {
-      chat_message: handleChatMessage,
-    },
-    userToken
-  );
-
-  // Set component name for better logging
-  useEffect(() => {
-    setComponentName("ChatWidget");
-  }, [setComponentName]);
-
-  // Send a new message
+  // Send a new message (static implementation)
   const sendMessage = useCallback(() => {
-    if (newMessage.trim() && isConnected) {
-      console.log("ChatWidget: Sending message:", newMessage);
-      // Send message to server
-      sendEvent("chat_message", { text: newMessage });
-      // Add to local messages (optimistic update)
+    if (newMessage.trim()) {
+      // Add to local messages
       setMessages((prev) => [...prev, { user: "You", text: newMessage }]);
       setNewMessage("");
+
+      // Simulate a response
+      setTimeout(() => {
+        setMessages((prev) => [
+          ...prev,
+          {
+            user: "System",
+            text: "This is a static response. Socket functionality has been removed.",
+          },
+        ]);
+      }, 1000);
     }
-  }, [newMessage, isConnected, sendEvent]);
+  }, [newMessage]);
 
   return (
     <div className="flex flex-col bg-white rounded-lg shadow-md overflow-hidden w-full h-[400px]">
@@ -52,12 +43,8 @@ export default function ChatWidget({ userToken }: { userToken: string }) {
       <div className="bg-indigo-600 text-white py-3 px-4 flex justify-between items-center">
         <h3 className="font-semibold">Chat</h3>
         <div className="flex items-center gap-2">
-          <span
-            className={`w-2 h-2 rounded-full ${
-              isConnected ? "bg-green-400" : "bg-red-400"
-            }`}
-          ></span>
-          <span className="text-xs">{status}</span>
+          <span className="w-2 h-2 rounded-full bg-gray-400"></span>
+          <span className="text-xs">Static Mode</span>
         </div>
       </div>
 
@@ -91,11 +78,10 @@ export default function ChatWidget({ userToken }: { userToken: string }) {
           onKeyDown={(e) => e.key === "Enter" && sendMessage()}
           placeholder="Type a message..."
           className="flex-1 border border-gray-300 rounded-md py-2 px-3 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-          disabled={!isConnected}
         />
         <button
           onClick={sendMessage}
-          disabled={!isConnected || !newMessage.trim()}
+          disabled={!newMessage.trim()}
           className="bg-indigo-600 text-white font-medium py-2 px-4 rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50"
         >
           Send
