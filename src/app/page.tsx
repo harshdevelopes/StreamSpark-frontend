@@ -71,11 +71,11 @@ export default function Home() {
               className="mt-10 space-x-4"
             >
               <Link
-                href="/waitlist"
+                href="/signup"
                 // Update button styles
                 className="inline-flex items-center px-8 py-3 border border-transparent text-base font-medium rounded-lg shadow-sm text-white bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 transition-all transform hover:scale-105"
               >
-                Join the Waitlist
+                Sign Up
                 <FaArrowRight className="ml-2" />
               </Link>
               <Link
@@ -83,7 +83,7 @@ export default function Home() {
                 // Update button styles
                 className="inline-flex items-center px-8 py-3 border border-slate-300 dark:border-slate-600 text-base font-medium rounded-lg text-indigo-700 dark:text-indigo-300 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors shadow-sm hover:shadow-md"
               >
-                Streamer Login
+                Sign In
               </Link>
             </motion.div>
           </div>

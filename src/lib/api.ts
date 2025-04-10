@@ -87,6 +87,25 @@ export const loginUser = async (credentials: {
   return data;
 };
 
+export const registerUser = async (userData: {
+  username: string;
+  displayName: string;
+  email: string;
+  password: string;
+}) => {
+  const data = await apiFetch("/auth/register", {
+    method: "POST",
+    body: JSON.stringify(userData),
+  });
+
+  // Store the token if it exists in the response
+  if (data.token) {
+    setAuthToken(data.token);
+  }
+
+  return data;
+};
+
 // WAITLIST
 export const joinWaitlist = async (data: {
   email: string /* Add other fields if needed */;
@@ -151,6 +170,33 @@ export const useLogin = (
 ) => {
   return useMutation<any, Error, { email: string; password: string }>({
     mutationFn: loginUser,
+    ...options,
+  });
+};
+
+export const useRegister = (
+  options?: UseMutationOptions<
+    any,
+    Error,
+    {
+      username: string;
+      displayName: string;
+      email: string;
+      password: string;
+    }
+  >
+) => {
+  return useMutation<
+    any,
+    Error,
+    {
+      username: string;
+      displayName: string;
+      email: string;
+      password: string;
+    }
+  >({
+    mutationFn: registerUser,
     ...options,
   });
 };

@@ -130,10 +130,10 @@ export default function LoginPage() {
         <p className="mt-6 text-center text-sm text-slate-500 dark:text-slate-400">
           Don't have an account?{" "}
           <Link
-            href="/waitlist"
+            href="/signup"
             className="font-medium text-indigo-600 hover:text-indigo-500 dark:text-indigo-400 dark:hover:text-indigo-300"
           >
-            Join the waitlist
+            Sign up
           </Link>
         </p>
       </div>
