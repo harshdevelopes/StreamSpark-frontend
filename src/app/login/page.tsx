@@ -2,15 +2,28 @@
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useLogin } from "@/lib/api";
+import { FaYoutube } from "react-icons/fa";
+import { signIn } from "next-auth/react";
 
 const API_BASE_URL = "http://localhost:8000/api";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("streamer@example.com");
   const [password, setPassword] = useState("password");
+  const [isYoutubeLoading, setIsYoutubeLoading] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
   const router = useRouter();
+  const searchParams = useSearchParams();
+
+  // Check for auth errors in URL from NextAuth
+  useEffect(() => {
+    const error = searchParams?.get("error");
+    if (error) {
+      setAuthError(decodeURIComponent(error));
+    }
+  }, [searchParams]);
 
   const loginMutation = useLogin({
     onSuccess: (data) => {
@@ -25,6 +38,26 @@ export default function LoginPage() {
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     loginMutation.mutate({ email, password });
+  };
+
+  const handleYoutubeLogin = async () => {
+    setAuthError(null);
+    setIsYoutubeLoading(true);
+
+    console.log("Starting Google sign-in process...");
+
+    try {
+      const result = await signIn("google", {
+        callbackUrl: "/auth/google/loading",
+      });
+
+      // This may not be reached if redirection occurs
+      console.log("Sign in completed with result:", result);
+    } catch (error) {
+      console.error("YouTube login failed:", error);
+      setAuthError("Failed to initiate YouTube login");
+      setIsYoutubeLoading(false);
+    }
   };
 
   return (
@@ -43,6 +76,19 @@ export default function LoginPage() {
             Access your SuperTip dashboard
           </p>
         </div>
+
+        {/* Display auth errors */}
+        {authError && (
+          <div className="mb-4 p-3 bg-red-100 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg">
+            <p className="text-sm text-red-600 dark:text-red-400">
+              Authentication Error: {authError}
+            </p>
+            <p className="text-xs text-red-500 dark:text-red-400 mt-1">
+              Please ensure you've configured the correct redirect URI in Google
+              Console.
+            </p>
+          </div>
+        )}
 
         <form onSubmit={handleLogin} className="space-y-5">
           <div>
@@ -126,6 +172,45 @@ export default function LoginPage() {
             </button>
           </div>
         </form>
+
+        <div className="mt-4">
+          <button
+            type="button"
+            onClick={handleYoutubeLogin}
+            disabled={isYoutubeLoading}
+            className="w-full flex justify-center items-center py-3 px-4 border border-slate-300 dark:border-slate-600 rounded-lg shadow-sm text-sm font-medium text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-all disabled:opacity-70"
+          >
+            {isYoutubeLoading ? (
+              <>
+                <svg
+                  className="animate-spin -ml-1 mr-3 h-5 w-5 text-white"
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                >
+                  <circle
+                    className="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                  ></circle>
+                  <path
+                    className="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                  ></path>
+                </svg>
+              </>
+            ) : (
+              <>
+                <FaYoutube className="w-5 h-5 mr-2" />
+                Sign in with YouTube
+              </>
+            )}
+          </button>
+        </div>
 
         <p className="mt-6 text-center text-sm text-slate-500 dark:text-slate-400">
           Don't have an account?{" "}

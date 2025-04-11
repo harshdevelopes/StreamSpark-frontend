@@ -35,9 +35,9 @@ export const apiFetch = async (endpoint: string, options: RequestInit = {}) => {
   const url = `${baseUrl}${endpoint}`;
 
   // Set default headers
-  const headers = {
+  const headers: Record<string, string> = {
     "Content-Type": "application/json",
-    ...options.headers,
+    ...(options.headers as Record<string, string>),
   };
 
   // Add authorization header if token exists
@@ -77,6 +77,20 @@ export const loginUser = async (credentials: {
   const data = await apiFetch("/auth/login", {
     method: "POST",
     body: JSON.stringify(credentials),
+  });
+
+  // Store the token if it exists in the response
+  if (data.token) {
+    setAuthToken(data.token);
+  }
+
+  return data;
+};
+
+export const googleAuthLogin = async (idToken: string) => {
+  const data = await apiFetch("/auth/google", {
+    method: "POST",
+    body: JSON.stringify({ idToken }),
   });
 
   // Store the token if it exists in the response
@@ -170,6 +184,15 @@ export const useLogin = (
 ) => {
   return useMutation<any, Error, { email: string; password: string }>({
     mutationFn: loginUser,
+    ...options,
+  });
+};
+
+export const useGoogleAuth = (
+  options?: UseMutationOptions<any, Error, string>
+) => {
+  return useMutation<any, Error, string>({
+    mutationFn: googleAuthLogin,
     ...options,
   });
 };
